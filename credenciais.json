@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "botfinanceiro-462601",
+  "private_key_id": "467b749785b02d987e8bbc6fb90b7e2af6ea6c91",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCcQFPMDB3HlIsy\nl83MJSXaf8moT6em2eU4bkoNi4mG7cSp7cPg6IRS0zbTfV8Z1/VBBg+PQIw5US6Y\n+qcot45cbzNh0a/OuvIMulLdTWoH9w3CV3fLu6uIzug8ILNfDrKimRXEyXI68n+k\nunqp42V2KAHxZFSFQn3OWRE7HFh/VPzqmRIp2nth7KuB+fz3jovq0LCveyYj5rKl\nOjDVerJLmoUSDAdTo5DJbfDkjifotlf0o8+ee1UV2Zs2Et86P5DIq+nanIXzdVP2\n8K4eIRZoLhDiy27iDNWm0HgkL6PLKpIcBbDR9xDI5RanUBulAedo3zcEQexpwt2Y\nM4WSGuWjAgMBAAECggEABrRL5Clw7atV/am9ztCZOzLYeDxSuToIN8+jpcki8YMq\nORBWo0PWyab+Zzyt4/H8N/oGmOLwIVV2ZmH64iheF2E+FyhkHr6uvBUSkSRNNGJJ\nWNlf7oHy7j/SfyH4EFAVIhznbjYmjJjzGSJXOQrkw5kb3Dut1Lnxo/T2ZE7nDS+L\nLohnva//ZuzefTO0AYOvpTpUFMiEAYDL/gaGQBe0k0Rl4420248GY1DxWshgjP52\nDekn0gXJYBA0JClz+M6eytgFz4kmGoxllAFeC7Gd5CU7JTv5ljHk+8i12jSeduoc\nKwOGqFqsJvSgtYVH8MUA1T1MJXG8lWqEFWmm+BGAYQKBgQDOjfLl28uA6ZGHxt40\nwzippRxIhAWohGqUiTusWuLBmiThziO6zvW+XIt5shj+rdS702a390FClxR9ZMzo\nzx5nEvI6zBpI3G+3V8UyJUUqPRnMzMjDf9V4o+dB4C1trY6eplEBelJjEl9nhcU6\nUhAp2+uhD1wqwi8asrumIZZazwKBgQDBp7PNzHGQmXgkooK6QXkZ55LJHZEYNFnA\nQ9JuBvqQpnJBT/YZa+1fI8AskhKJPeJswYnFbeiOgM+ohtc/aFgvxGY7qQEt0rKS\nwMSbMVVn0fEB8yG62D/QS5ZmbsD3hhGn+kkbgcOV5RAXz8p5WoFvauQqSB4EAfgh\nlTJI4y7s7QKBgQCh1nyLdvRzNA5vuPSfmJpL6W9IrhCU4fN0IDZeK/PhRzpApjg+\nhSvslCxAFLgay+6Tn+aqm5NJboCCYzld6/JhRmn+ga7Sic0KdT2vtZ4Eo00UtxtS\nelWzKZDnf5N4jPTi/2MW6lWlBF82CIzoziWV9pcfYZ6QbgdkPshiOYzJ5wKBgAiu\ndfcR5T1wQ9yQlH+5E66/nOr7Mlf9cNCXucVI9s6pR5H5/bRiDEApoCHfYolYhuAN\nRRnetYA98hFCCkBDc0Cg81xVVUIyoeLGVYoHiiafWMiXl7mCnEnAObvZ1zjBf+Uh\n6UkcZiJAJJqMrC0Ii6jtB9GFbiML243V3G08Egx5AoGAZB5ir6iaXNSNRADiYlen\nryNciBg4EGHd5vKhaEQOqVITBtHE/GutfWEnZxpzgQWrFPOGnEYFuOe9rVdWaV7P\nJtqphGnWmh51u1hmKj63M4iozS+D9XX93WmGIcy+7u2UdUqBebJV4gzqkN0GnMD4\nwyFzvd+k8lJ2Oh1UkOAaM4k=\n-----END PRIVATE KEY-----\n",
+  "client_email": "automacao-barbearia@botfinanceiro-462601.iam.gserviceaccount.com",
+  "client_id": "104573572786024059807",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/automacao-barbearia%40botfinanceiro-462601.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
