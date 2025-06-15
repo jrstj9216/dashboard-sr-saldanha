@@ -1,120 +1,87 @@
-import streamlit as st  
-import pandas as pd  
-import fitz  
-import gspread  
-from oauth2client.service_account import ServiceAccountCredentials  
-import matplotlib.pyplot as plt  
-import seaborn as sns  
+import streamlit as st
+import pandas as pd
+import gspread
+from google.oauth2.service_account import Credentials
 
-st.set_page_config(page_title="Sr. Saldanha | Dashboard Faturamento", layout="wide")  
+# 🧠 Autenticação com Google Sheets
+scope = ["https://www.googleapis.com/auth/spreadsheets",
+         "https://www.googleapis.com/auth/drive"]
 
-st.title("💈 Sr. Saldanha | Dashboard de Faturamento")  
+credentials = Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"],
+    scopes=scope
+)
 
-# Conexão com Google Sheets  
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]  
-creds = ServiceAccountCredentials.from_json_keyfile_name("credenciais.json", scope)  
-client = gspread.authorize(creds)  
+client = gspread.authorize(credentials)
 
-spreadsheet = client.open("Automacao_Barbearia")  
-sheet = spreadsheet.worksheet("Dados_Faturamento")  
+# 🔗 Conectando à Planilha
+spreadsheet = client.open("Automacao_Barbearia")
+sheet = spreadsheet.worksheet("Dados_Faturamento")
+data = sheet.get_all_records()
 
-# Upload PDFs  
-st.subheader("📤 Upload dos PDFs")  
-uploaded_files = st.file_uploader("Enviar PDFs", type="pdf", accept_multiple_files=True)  
+# 📊 Criando DataFrame
+df = pd.DataFrame(data)
 
-data = []  
+# 🧽 Tratamento de dados
+df["Ano"] = df["Ano"].astype(str)
+df["Mês"] = df["Mês"].astype(str)
 
-if uploaded_files:  
-    for file in uploaded_files:  
-        with fitz.open(stream=file.read(), filetype="pdf") as pdf:  
-            text = "".join([page.get_text() for page in pdf])  
+# 🖥️ Layout
+st.set_page_config(page_title="Dashboard Sr. Saldanha", layout="wide")
+st.title("💈 Sr. Saldanha | Dashboard de Faturamento")
 
-            ano = "2024" if "2024" in text else "2023"  
-            meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",  
-                     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]  
+# 🚥 KPIs principais
+st.subheader("📈 Indicadores")
 
-            for mes in meses:  
-                if mes in text:  
-                    faturamento = 10000  # Substituir por sua extração real  
-                    comandas = 200  
-                    ticket = round(faturamento / comandas, 2)  
+col1, col2, col3 = st.columns(3)
+col1.metric("💰 Faturamento Total", f'R$ {df["Faturamento"].sum():,.2f}')
+col2.metric("📋 Total de Comandas", int(df["Comandas"].sum()))
+col3.metric("🎟️ Ticket Médio", f'R$ {df["Ticket Médio"].mean():,.2f}')
 
-                    data.append([ano, mes, faturamento, comandas, ticket])  
+st.markdown("---")
 
-    if data:  
-        sheet.append_rows(data)  
-        st.success("✅ Dados enviados ao Google Sheets!")  
+# 🎛️ Filtros
+st.sidebar.header("Filtros")
+ano = st.sidebar.selectbox("Ano", df["Ano"].unique())
+mes = st.sidebar.selectbox("Mês", df["Mês"].unique())
 
-# Ler dados existentes  
-dados = sheet.get_all_records()  
-df = pd.DataFrame(dados)  
+df_filtrado = df[(df["Ano"] == ano) & (df["Mês"] == mes)]
 
-if not df.empty:  
-    st.subheader("🗂️ Filtros e Comparação")  
-    col1, col2, col3, col4 = st.columns([1,1,1,1.5])  
+# 📈 Gráficos
+st.subheader("🚀 Evolução de Faturamento por Mês")
+graf1 = df.groupby(["Ano", "Mês"])["Faturamento"].sum().reset_index()
+st.line_chart(graf1.pivot(index="Mês", columns="Ano", values="Faturamento"))
 
-    with col1:  
-        anos = st.multiselect("Ano", df["Ano"].unique(), default=df["Ano"].unique())  
-    with col2:  
-        meses = st.multiselect("Mês", df["Mês"].unique(), default=df["Mês"].unique())  
+st.subheader("📊 Ticket Médio por Mês")
+graf2 = df.groupby(["Ano", "Mês"])["Ticket Médio"].mean().reset_index()
+st.line_chart(graf2.pivot(index="Mês", columns="Ano", values="Ticket Médio"))
 
-    with col4:  
-        comparar = st.checkbox("🔀 Comparar Período")  
+# 📅 Comparativo de Períodos
+st.subheader("📅 Comparativo de Períodos")
 
-    filtro = (df["Ano"].isin(anos)) & (df["Mês"].isin(meses))  
-    df_filtrado = df[filtro]  
+col4, col5 = st.columns(2)
+with col4:
+    ano1 = st.selectbox("Período 1 - Ano", df["Ano"].unique())
+    mes1 = st.selectbox("Período 1 - Mês", df["Mês"].unique())
 
-    st.subheader("📊 Indicadores")  
-    col1, col2, col3 = st.columns(3)  
-    col1.metric("Faturamento Total", f'R$ {df_filtrado["Faturamento"].sum():,.2f}')  
-    col2.metric("Total de Comandas", f'{df_filtrado["Comandas"].sum()}')  
-    col3.metric("Ticket Médio", f'R$ {df_filtrado["Ticket Médio"].mean():,.2f}')  
+with col5:
+    ano2 = st.selectbox("Período 2 - Ano", df["Ano"].unique(), key="ano2")
+    mes2 = st.selectbox("Período 2 - Mês", df["Mês"].unique(), key="mes2")
 
-    st.subheader("📈 Gráficos")  
-    col1, col2 = st.columns(2)  
+filtro1 = (df["Ano"] == ano1) & (df["Mês"] == mes1)
+filtro2 = (df["Ano"] == ano2) & (df["Mês"] == mes2)
 
-    with col1:  
-        st.markdown("**Faturamento Mensal**")  
-        fig, ax = plt.subplots()  
-        sns.barplot(data=df_filtrado, x="Mês", y="Faturamento", hue="Ano", ax=ax)  
-        plt.xticks(rotation=45)  
-        st.pyplot(fig)  
+fat1 = df.loc[filtro1, "Faturamento"].sum()
+fat2 = df.loc[filtro2, "Faturamento"].sum()
+dif = fat2 - fat1
+perc = (dif / fat1) * 100 if fat1 != 0 else 0
 
-    with col2:  
-        st.markdown("**Ticket Médio Mensal**")  
-        fig, ax = plt.subplots()  
-        sns.lineplot(data=df_filtrado, x="Mês", y="Ticket Médio", hue="Ano", marker="o", ax=ax)  
-        plt.xticks(rotation=45)  
-        st.pyplot(fig)  
+st.write(f"**Período 1:** {mes1}/{ano1} → **R$ {fat1:,.2f}**")
+st.write(f"**Período 2:** {mes2}/{ano2} → **R$ {fat2:,.2f}**")
+st.write(f"**Variação:** {'🔺' if perc > 0 else '🔻'} {perc:.2f}%")
 
-    if comparar:  
-        st.subheader("🔀 Comparar Períodos")  
+st.markdown("---")
 
-        col1, col2 = st.columns(2)  
-        with col1:  
-            ano1 = st.selectbox("Ano Período 1", df["Ano"].unique())  
-            mes1 = st.selectbox("Mês Período 1", df["Mês"].unique())  
-
-        with col2:  
-            ano2 = st.selectbox("Ano Período 2", df["Ano"].unique())  
-            mes2 = st.selectbox("Mês Período 2", df["Mês"].unique())  
-
-        df1 = df[(df["Ano"] == ano1) & (df["Mês"] == mes1)]  
-        df2 = df[(df["Ano"] == ano2) & (df["Mês"] == mes2)]  
-
-        st.write("### 📊 Comparativo de Períodos")  
-        col1, col2, col3 = st.columns(3)  
-
-        faturamento1 = df1["Faturamento"].sum()  
-        faturamento2 = df2["Faturamento"].sum()  
-        diff_fat = faturamento2 - faturamento1  
-        perc_fat = (diff_fat / faturamento1) * 100 if faturamento1 != 0 else 0  
-
-        col1.metric("Faturamento", f"R$ {faturamento1:,.2f}", f"{perc_fat:.2f}%")  
-        col2.metric("Faturamento", f"R$ {faturamento2:,.2f}")  
-
-        # Repetir para comandas e ticket médio se quiser  
-
-# Dados detalhados  
-st.subheader("📄 Dados Detalhados")  
-st.dataframe(df_filtrado)  
+# 📑 Tabela Detalhada
+st.subheader("📑 Dados Detalhados")
+st.dataframe(df)
