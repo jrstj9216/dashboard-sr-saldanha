@@ -6,7 +6,7 @@ from google.oauth2.service_account import Credentials
 # 🎨 Configuração da página
 st.set_page_config(page_title="Dashboard Sr. Saldanha", layout="wide")
 
-# 🔐 Autenticação com Google Sheets
+# 🔑 Autenticação com Google Sheets
 scope = ["https://www.googleapis.com/auth/spreadsheets",
          "https://www.googleapis.com/auth/drive"]
 
@@ -17,20 +17,22 @@ credentials = Credentials.from_service_account_info(
 
 client = gspread.authorize(credentials)
 
-# 🔗 Conectando à planilha
+# 📊 Conectando à planilha
 spreadsheet = client.open("Automacao_Barbearia")
 sheet = spreadsheet.worksheet("Dados_Faturamento")
 
 # 🚀 Função para extrair dados dos arquivos Excel
 def extrair_dados_excel(uploaded_file):
     df = pd.read_excel(uploaded_file)
-    df.columns = df.columns.str.strip()  # Remove espaços extras nos nomes das colunas
+    df.columns = df.columns.str.strip()  # Remove espaços dos nomes das colunas
     return df
 
-# 📤 Upload dos arquivos
-st.sidebar.header("📑 Enviar Arquivos Excel de Faturamento")
+# 📤 Upload dos arquivos Excel
+st.sidebar.header("📄 Enviar Arquivos Excel de Faturamento")
 uploaded_files = st.sidebar.file_uploader(
-    "Escolha os arquivos Excel", type=["xlsx"], accept_multiple_files=True
+    "Escolha os arquivos Excel",
+    type=["xlsx"],
+    accept_multiple_files=True
 )
 
 dfs = []
@@ -44,27 +46,28 @@ if uploaded_files:
     if dfs:
         df_final = pd.concat(dfs, ignore_index=True)
 
-        st.subheader("📄 Dados extraídos:")
+        st.subheader("📄 Dados extraídos dos arquivos Excel:")
         st.dataframe(df_final)
 
-        # 🔄 Atualiza o Google Sheets
+        # 🔗 Enviar para Google Sheets
         if st.button("🔗 Enviar dados para Google Sheets"):
-            sheet.clear()  # ⚠️ Limpa antes de atualizar
+            sheet.clear()  # Limpa antes de atualizar
             sheet.update([df_final.columns.values.tolist()] + df_final.values.tolist())
-            st.success("Dados enviados para Google Sheets com sucesso!")
+            st.success("Dados enviados para o Google Sheets com sucesso!")
 
-# 📊 Dashboard de Faturamento
+# 📈 Dashboard de Faturamento
 st.title("💈 Sr. Saldanha | Dashboard de Faturamento")
 
 try:
     dados = sheet.get_all_records()
     df = pd.DataFrame(dados)
 
-    df["Ano"] = df["Ano"].astype(str)
-    df["Mês"] = df["Mês"].astype(str)
+    # 🧽 Tratamento
+    df["Ano"] = df["Ano"].astype(str).str.strip()
+    df["Mês"] = df["Mês"].astype(str).str.strip()
 
-    # 🚥 KPIs principais → Total 2025
-    st.subheader("📈 Total 2025")
+    # 🏆 KPIs - Faturamento Total, Comandas e Ticket Médio
+    st.subheader("📊 Total 2025")
 
     df_2025 = df[df["Ano"] == "2025"]
 
@@ -75,18 +78,20 @@ try:
 
     st.markdown("---")
 
-    # 📈 Evolução de Faturamento
+    # 📈 Gráfico de Faturamento por Mês
     st.subheader("🚀 Evolução de Faturamento por Mês")
     graf1 = df.groupby(["Ano", "Mês"])["Faturamento"].sum().reset_index()
     st.line_chart(graf1.pivot(index="Mês", columns="Ano", values="Faturamento"))
 
-    # 📊 Ticket Médio por Mês
-    st.subheader("📊 Ticket Médio por Mês")
+    # 📈 Gráfico de Ticket Médio
+    st.subheader("🎯 Ticket Médio por Mês")
     graf2 = df.groupby(["Ano", "Mês"])["Ticket Médio"].mean().reset_index()
     st.line_chart(graf2.pivot(index="Mês", columns="Ano", values="Ticket Médio"))
 
-    # 📑 Dados Detalhados
-    st.subheader("📑 Dados Detalhados")
+    st.markdown("---")
+
+    # 📑 Tabela Completa
+    st.subheader("📄 Dados Completos da Planilha")
     st.dataframe(df)
 
 except Exception as e:
