@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import fitz  # PyMuPDF
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -22,46 +21,16 @@ client = gspread.authorize(credentials)
 spreadsheet = client.open("Automacao_Barbearia")
 sheet = spreadsheet.worksheet("Dados_Faturamento")
 
-# 🚀 Função para extrair dados do PDF
-def extrair_dados_pdf(uploaded_file):
-    texto = ""
-    with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
-        for page in doc:
-            texto += page.get_text()
-
-    linhas = texto.split("\n")
-    dados = []
-
-    for linha in linhas:
-        if "/" in linha and any(c.isdigit() for c in linha):
-            partes = linha.split()
-            if len(partes) >= 4:
-                data = partes[0]
-                faturamento = partes[1].replace(".", "").replace(",", ".")
-                comandas = partes[2]
-                ticket = partes[3].replace(",", ".")
-                ano, mes = data.split("/")
-
-                dados.append({
-                    "Ano": ano,
-                    "Mês": mes,
-                    "Faturamento": float(faturamento),
-                    "Comandas": int(comandas),
-                    "Ticket Médio": float(ticket)
-                })
-
-    return pd.DataFrame(dados)
-
-# 📤 Upload dos PDFs
-st.sidebar.header("📑 Enviar PDFs de Faturamento")
-uploaded_files = st.sidebar.file_uploader("Escolha os PDFs", type="pdf", accept_multiple_files=True)
+# 🚀 Upload dos Arquivos Excel
+st.sidebar.header("📑 Enviar Dados de Faturamento")
+uploaded_files = st.sidebar.file_uploader("Escolha os arquivos Excel", type=["xls", "xlsx"], accept_multiple_files=True)
 
 dfs = []
 
 if uploaded_files:
     for file in uploaded_files:
         st.info(f"Lendo arquivo: {file.name}")
-        df = extrair_dados_pdf(file)
+        df = pd.read_excel(file)
         dfs.append(df)
 
     if dfs:
@@ -85,6 +54,10 @@ try:
 
     df["Ano"] = df["Ano"].astype(str)
     df["Mês"] = df["Mês"].astype(str)
+
+    df["Faturamento"] = pd.to_numeric(df["Faturamento"], errors='coerce').fillna(0)
+    df["Comandas"] = pd.to_numeric(df["Comandas"], errors='coerce').fillna(0)
+    df["Ticket Médio"] = pd.to_numeric(df["Ticket Médio"], errors='coerce').fillna(0)
 
     # 🎯 Dados apenas do ano de 2025
     df_2025 = df[df["Ano"] == "2025"]
