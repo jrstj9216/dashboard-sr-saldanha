@@ -3,43 +3,36 @@ import pandas as pd
 import fitz  # PyMuPDF
 import gspread
 from google.oauth2.service_account import Credentials
+import io
 
-# ⚙️ Configuração da página
-st.set_page_config(page_title="Dashboard Sr. Saldanha", layout="wide")
+# ⚙️ Configuração da página (PRIMEIRA LINHA SEMPRE)
+st.set_page_config(
+    page_title="Dashboard Sr. Saldanha",
+    layout="wide",
+    page_icon="💈"
+)
 
-# 🎨 Estilo CSS personalizado
+# 🌑 Estilo Dark
 st.markdown(
     """
     <style>
-    .stApp {
+    body {
         background-color: #000000;
         color: white;
     }
-    h1, h2, h3, h4 {
+    .stApp {
+        background-color: #000000;
+    }
+    div[data-testid="stMetricValue"] {
         color: white;
-        text-align: center;
+        font-size: 40px;
     }
-    div[data-testid="metric-container"] {
-        background-color: #111;
-        border-radius: 15px;
-        padding: 20px;
-        border: 1px solid #333;
-        color: white;
-    }
-    div[data-testid="stSidebar"] {
-        background-color: #111;
-    }
-    .stButton>button {
-        background-color: #444;
-        color: white;
-        border-radius: 8px;
-    }
-    .stButton>button:hover {
-        background-color: #666;
+    .css-1d391kg {
+        background-color: #111111;
     }
     </style>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
 # 🔐 Autenticação com Google Sheets
@@ -90,16 +83,14 @@ def extrair_dados_pdf(uploaded_file):
 # 📤 Upload dos PDFs
 st.sidebar.header("📑 Enviar PDFs de Faturamento")
 uploaded_files = st.sidebar.file_uploader(
-    "Escolha os PDFs (pode selecionar múltiplos)", 
-    type="pdf", 
-    accept_multiple_files=True
+    "Escolha os PDFs", type="pdf", accept_multiple_files=True
 )
 
 dfs = []
 
 if uploaded_files:
     for file in uploaded_files:
-        st.info(f"Lendo arquivo: {file.name}")
+        st.info(f"📥 Lendo arquivo: {file.name}")
         df = extrair_dados_pdf(file)
         dfs.append(df)
 
@@ -109,61 +100,65 @@ if uploaded_files:
         st.subheader("📄 Dados extraídos:")
         st.dataframe(df_final)
 
-        # 🔄 Atualiza o Google Sheets
         if st.button("🔗 Enviar dados para Google Sheets"):
-            sheet.clear()  # ⚠️ Limpa antes de atualizar
+            sheet.clear()
             sheet.update([df_final.columns.values.tolist()] + df_final.values.tolist())
-            st.success("Dados enviados para Google Sheets com sucesso!")
+            st.success("✅ Dados enviados para Google Sheets com sucesso!")
 
-# 📊 Dashboard de Faturamento
-st.title("💈 Sr. Saldanha | Dashboard de Faturamento")
+# 🎯 Dashboard Principal
+st.markdown("<h1 style='text-align: center;'>💈 Dados de Faturamento</h1>", unsafe_allow_html=True)
 
 try:
     dados = sheet.get_all_records()
     df = pd.DataFrame(dados)
 
-    # 🧽 Tratamento
     df["Ano"] = df["Ano"].astype(str)
     df["Mês"] = df["Mês"].astype(str)
 
     # 🚥 KPIs principais
-    st.subheader("📈 Indicadores")
-
     col1, col2, col3 = st.columns(3)
-    col1.metric("💰 Faturamento Total", f'R$ {df["Faturamento"].sum():,.2f}')
-    col2.metric("📋 Total de Comandas", int(df["Comandas"].sum()))
-    col3.metric("🎟️ Ticket Médio", f'R$ {df["Ticket Médio"].mean():,.2f}')
+    col1.metric("💰 Faturamento", f'{df["Faturamento"].sum():,.0f}'.replace(",", "."))
+    col2.metric("🧾 Comandas", f'{int(df["Comandas"].sum()):,}'.replace(",", "."))
+    col3.metric("🎟️ Ticket Médio", f'{df["Ticket Médio"].mean():,.0f}'.replace(",", "."))
 
     st.markdown("---")
 
     # 🎛️ Filtros
-    st.sidebar.header("🔎 Filtros")
-    ano = st.sidebar.selectbox("Ano", sorted(df["Ano"].unique()))
-    mes = st.sidebar.selectbox("Mês", sorted(df["Mês"].unique()))
+    colA, colB, colC = st.columns([1, 1, 2])
+    with colA:
+        ano = st.selectbox("Ano", sorted(df["Ano"].unique()))
+    with colB:
+        mes = st.selectbox("Mês", sorted(df["Mês"].unique()))
+    with colC:
+        st.write("")
 
     df_filtrado = df[(df["Ano"] == ano) & (df["Mês"] == mes)]
 
-    # 📈 Gráfico de Faturamento
-    st.subheader("🚀 Evolução de Faturamento por Mês")
+    # 📈 Gráfico Faturamento
+    st.subheader("📈 Faturamento por Mês")
     graf1 = df.groupby(["Ano", "Mês"])["Faturamento"].sum().reset_index()
+    graf1 = graf1.sort_values(by="Mês")
     st.line_chart(graf1.pivot(index="Mês", columns="Ano", values="Faturamento"))
 
-    # 📊 Gráfico de Ticket Médio
+    # 📊 Gráfico Ticket Médio
     st.subheader("📊 Ticket Médio por Mês")
     graf2 = df.groupby(["Ano", "Mês"])["Ticket Médio"].mean().reset_index()
+    graf2 = graf2.sort_values(by="Mês")
     st.line_chart(graf2.pivot(index="Mês", columns="Ano", values="Ticket Médio"))
 
-    # 📅 Comparativo de Períodos
+    st.markdown("---")
+
+    # 📅 Comparativo
     st.subheader("📅 Comparativo de Períodos")
 
     col4, col5 = st.columns(2)
     with col4:
-        ano1 = st.selectbox("Período 1 - Ano", sorted(df["Ano"].unique()))
-        mes1 = st.selectbox("Período 1 - Mês", sorted(df["Mês"].unique()))
+        ano1 = st.selectbox("Período 1 - Ano", df["Ano"].unique())
+        mes1 = st.selectbox("Período 1 - Mês", df["Mês"].unique())
 
     with col5:
-        ano2 = st.selectbox("Período 2 - Ano", sorted(df["Ano"].unique()), key="ano2")
-        mes2 = st.selectbox("Período 2 - Mês", sorted(df["Mês"].unique()), key="mes2")
+        ano2 = st.selectbox("Período 2 - Ano", df["Ano"].unique(), key="ano2")
+        mes2 = st.selectbox("Período 2 - Mês", df["Mês"].unique(), key="mes2")
 
     filtro1 = (df["Ano"] == ano1) & (df["Mês"] == mes1)
     filtro2 = (df["Ano"] == ano2) & (df["Mês"] == mes2)
@@ -173,13 +168,13 @@ try:
     dif = fat2 - fat1
     perc = (dif / fat1) * 100 if fat1 != 0 else 0
 
-    st.write(f"**Período 1:** {mes1}/{ano1} → **R$ {fat1:,.2f}**")
-    st.write(f"**Período 2:** {mes2}/{ano2} → **R$ {fat2:,.2f}**")
-    st.write(f"**Variação:** {'🔺' if perc > 0 else '🔻'} {perc:.2f}%")
+    col6, col7 = st.columns(2)
+    col6.metric(f"Período {mes1}/{ano1}", f'R$ {fat1:,.0f}'.replace(",", "."), f"{perc:.2f}%")
+    col7.metric(f"Período {mes2}/{ano2}", f'R$ {fat2:,.0f}'.replace(",", "."), f"{perc:.2f}%")
 
     st.markdown("---")
 
-    # 📑 Tabela Detalhada
+    # 🗒️ Tabela Detalhada
     st.subheader("📑 Dados Detalhados")
     st.dataframe(df)
 
