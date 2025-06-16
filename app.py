@@ -28,7 +28,7 @@ def extrair_dados_excel(uploaded_file):
     return df
 
 # 📤 Upload dos arquivos
-st.sidebar.header("📑 Enviar Arquivos de Faturamento")
+st.sidebar.header("📑 Enviar Arquivos Excel de Faturamento")
 uploaded_files = st.sidebar.file_uploader(
     "Escolha os arquivos Excel", type=["xlsx"], accept_multiple_files=True
 )
