@@ -1,6 +1,6 @@
-streamlit>=1.24.0
-pandas>=1.5.3
-gspread>=5.7.2
-google-auth>=2.19.0
-openoyxl
+streamlit>==1.35.0
+pandas>==2.2.2
+gspread>==6.0.2
+google-auth>==2.29.0
+openoyxl==3.1.2
 
