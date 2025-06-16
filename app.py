@@ -77,7 +77,7 @@ if uploaded_files:
         st.subheader("📊 Total faturado 2025")
         col1, col2, col3 = st.columns(3)
 
-        col1.metric("💰 Faturamento Total", f"R$ {faturamento_deste_mês - total:,.2f}")
+        col1.metric("💰 Faturamento Total", f"R$ {faturamento_total:,.2f}")
         col2.metric("📄 Total de Comandas", int(total_comandas))
         col3.metric("💳 Ticket Médio", f"R$ {ticket_medio:,.2f}")
 
