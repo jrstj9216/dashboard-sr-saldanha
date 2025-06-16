@@ -1,13 +1,12 @@
 import streamlit as st
 import pandas as pd
-import fitz  # PyMuPDF
 import gspread
 from google.oauth2.service_account import Credentials
 
-# ⚙️ Configuração da página
+# 🚩 Configuração da Página
 st.set_page_config(page_title="Dashboard Sr. Saldanha", layout="wide")
 
-# 🔐 Autenticação com Google Sheets
+# 🔐 Conectar ao Google Sheets
 scope = ["https://www.googleapis.com/auth/spreadsheets",
          "https://www.googleapis.com/auth/drive"]
 
@@ -15,136 +14,49 @@ credentials = Credentials.from_service_account_info(
     st.secrets["gcp_service_account"],
     scopes=scope
 )
-
 client = gspread.authorize(credentials)
 
-# 🔗 Conectando à planilha
+# 🔗 Ler a planilha
 spreadsheet = client.open("Automacao_Barbearia")
 sheet = spreadsheet.worksheet("Dados_Faturamento")
+dados = sheet.get_all_records()
 
-# 🚀 Função para extrair dados do PDF
-def extrair_dados_pdf(uploaded_file):
-    texto = ""
-    with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
-        for page in doc:
-            texto += page.get_text()
+df = pd.DataFrame(dados)
 
-    linhas = texto.split("\n")
-    dados = []
+# 🧽 Tratamento de Dados
+df["Ano"] = df["Ano"].astype(str)
+df["Mês"] = df["Mês"].astype(str)
 
-    for linha in linhas:
-        if "/" in linha and any(c.isdigit() for c in linha):
-            partes = linha.split()
-            if len(partes) >= 4:
-                data = partes[0]
-                faturamento = partes[1].replace(".", "").replace(",", ".")
-                comandas = partes[2]
-                ticket = partes[3].replace(",", ".")
-                ano, mes = data.split("/")
+# 🎯 Filtros apenas para os Indicadores
+st.sidebar.header("🎯 Filtros para Indicadores")
+filtro_ano = st.sidebar.selectbox("Ano", sorted(df["Ano"].unique()))
+filtro_mes = st.sidebar.selectbox("Mês", sorted(df["Mês"].unique()))
 
-                dados.append({
-                    "Ano": ano,
-                    "Mês": mes,
-                    "Faturamento": float(faturamento),
-                    "Comandas": int(comandas),
-                    "Ticket Médio": float(ticket)
-                })
+df_filtrado = df[(df["Ano"] == filtro_ano) & (df["Mês"] == filtro_mes)]
 
-    return pd.DataFrame(dados)
-
-
-# 📤 Upload dos PDFs
-st.sidebar.header("📑 Enviar PDFs de Faturamento")
-uploaded_files = st.sidebar.file_uploader(
-    "Escolha os PDFs (pode selecionar múltiplos)", type="pdf", accept_multiple_files=True
-)
-
-dfs = []
-
-if uploaded_files:
-    for file in uploaded_files:
-        st.info(f"Lendo arquivo: {file.name}")
-        df = extrair_dados_pdf(file)
-        dfs.append(df)
-
-    if dfs:
-        df_final = pd.concat(dfs, ignore_index=True)
-
-        st.subheader("📄 Dados extraídos:")
-        st.dataframe(df_final)
-
-        if st.button("🔗 Enviar dados para Google Sheets"):
-            sheet.clear()
-            sheet.update([df_final.columns.values.tolist()] + df_final.values.tolist())
-            st.success("✅ Dados enviados para Google Sheets com sucesso!")
-
-
-# 📊 Dashboard
+# 🏆 Indicadores Filtrados
 st.title("💈 Sr. Saldanha | Dashboard de Faturamento")
 
-try:
-    dados = sheet.get_all_records()
-    df = pd.DataFrame(dados)
+st.subheader("📊 Indicadores do Mês Selecionado")
 
-    df["Ano"] = df["Ano"].astype(str)
-    df["Mês"] = df["Mês"].astype(str)
+col1, col2, col3 = st.columns(3)
+col1.metric("💰 Faturamento", f'R$ {df_filtrado["Faturamento"].sum():,.2f}')
+col2.metric("📋 Comandas", int(df_filtrado["Comandas"].sum()))
+col3.metric("🎟️ Ticket Médio", f'R$ {df_filtrado["Ticket Médio"].mean():,.2f}')
 
-    # 🔍 Filtro EXCLUSIVO para Indicadores
-    st.sidebar.header("🎯 Filtro dos Indicadores")
-    ano_indicador = st.sidebar.selectbox("Ano (Indicadores)", sorted(df["Ano"].unique()))
-    mes_indicador = st.sidebar.selectbox("Mês (Indicadores)", sorted(df["Mês"].unique()))
+st.markdown("---")
 
-    df_indicador = df[(df["Ano"] == ano_indicador) & (df["Mês"] == mes_indicador)]
+# 🚀 Gráficos Gerais (Sem Filtro)
+st.subheader("🚀 Evolução de Faturamento por Mês")
+graf1 = df.groupby(["Ano", "Mês"])["Faturamento"].sum().reset_index()
+st.line_chart(graf1.pivot(index="Mês", columns="Ano", values="Faturamento"))
 
-    # 🧠 Indicadores filtrados
-    st.subheader("📊 Indicadores (Filtrados)")
+st.subheader("🎯 Ticket Médio por Mês")
+graf2 = df.groupby(["Ano", "Mês"])["Ticket Médio"].mean().reset_index()
+st.line_chart(graf2.pivot(index="Mês", columns="Ano", values="Ticket Médio"))
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("💰 Faturamento", f'R$ {df_indicador["Faturamento"].sum():,.2f}')
-    col2.metric("📋 Comandas", int(df_indicador["Comandas"].sum()))
-    col3.metric("🎟️ Ticket Médio", f'R$ {df_indicador["Ticket Médio"].mean():,.2f}')
+st.markdown("---")
 
-    st.markdown("---")
-
-    # 🚀 Gráficos (dados completos sem filtro)
-    st.subheader("🚀 Evolução de Faturamento por Mês")
-    graf1 = df.groupby(["Ano", "Mês"])["Faturamento"].sum().reset_index()
-    st.line_chart(graf1.pivot(index="Mês", columns="Ano", values="Faturamento"))
-
-    st.subheader("📊 Ticket Médio por Mês")
-    graf2 = df.groupby(["Ano", "Mês"])["Ticket Médio"].mean().reset_index()
-    st.line_chart(graf2.pivot(index="Mês", columns="Ano", values="Ticket Médio"))
-
-    # 📅 Comparativo de Períodos (dados completos)
-    st.subheader("📅 Comparativo de Períodos")
-
-    col4, col5 = st.columns(2)
-    with col4:
-        ano1 = st.selectbox("Período 1 - Ano", df["Ano"].unique())
-        mes1 = st.selectbox("Período 1 - Mês", df["Mês"].unique())
-
-    with col5:
-        ano2 = st.selectbox("Período 2 - Ano", df["Ano"].unique(), key="ano2")
-        mes2 = st.selectbox("Período 2 - Mês", df["Mês"].unique(), key="mes2")
-
-    filtro1 = (df["Ano"] == ano1) & (df["Mês"] == mes1)
-    filtro2 = (df["Ano"] == ano2) & (df["Mês"] == mes2)
-
-    fat1 = df.loc[filtro1, "Faturamento"].sum()
-    fat2 = df.loc[filtro2, "Faturamento"].sum()
-    dif = fat2 - fat1
-    perc = (dif / fat1) * 100 if fat1 != 0 else 0
-
-    st.write(f"**Período 1:** {mes1}/{ano1} → **R$ {fat1:,.2f}**")
-    st.write(f"**Período 2:** {mes2}/{ano2} → **R$ {fat2:,.2f}**")
-    st.write(f"**Variação:** {'🔺' if perc > 0 else '🔻'} {perc:.2f}%")
-
-    st.markdown("---")
-
-    # 📑 Tabela Detalhada (dados completos)
-    st.subheader("📑 Dados Detalhados")
-    st.dataframe(df)
-
-except Exception as e:
-    st.warning("⚠️ Nenhum dado encontrado ou erro na conexão com o Google Sheets.")
-    st.exception(e)
+# 📑 Tabela Geral (Sem Filtro)
+st.subheader("📑 Dados Detalhados")
+st.dataframe(df)
