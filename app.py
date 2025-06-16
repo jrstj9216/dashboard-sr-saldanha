@@ -3,113 +3,147 @@ import pandas as pd
 import fitz  # PyMuPDF
 import gspread
 from google.oauth2.service_account import Credentials
-import re
+import io
 
-# 🎯 Autenticação com Google Sheets
+# ⚙️ Configuração da página (deve ser a primeira coisa Streamlit)
+st.set_page_config(page_title="Dashboard Sr. Saldanha", layout="wide")
+
+# 🔐 Autenticação com Google Sheets
 scope = ["https://www.googleapis.com/auth/spreadsheets",
          "https://www.googleapis.com/auth/drive"]
 
 credentials = Credentials.from_service_account_info(
-    st.secrets["gcp_service_account"], scopes=scope)
+    st.secrets["gcp_service_account"],
+    scopes=scope
+)
 
 client = gspread.authorize(credentials)
 
-# 🔗 Conectando ao Google Sheets
+# 🔗 Conectando à planilha
 spreadsheet = client.open("Automacao_Barbearia")
 sheet = spreadsheet.worksheet("Dados_Faturamento")
 
-
-# 🔍 Função para extrair dados do PDF
-def extrair_dados_pdf(file, ano_pdf):
+# 🚀 Função para extrair dados do PDF
+def extrair_dados_pdf(uploaded_file):
     texto = ""
-    pdf = fitz.open(stream=file.read(), filetype="pdf")
-    for page in pdf:
-        texto += page.get_text()
+    with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
+        for page in doc:
+            texto += page.get_text()
 
-    # Regex para capturar linhas tipo: 01/2024   45.000,00   900   50,00
-    linhas = re.findall(r'(\d{2}/\d{4})\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)', texto)
-
+    linhas = texto.split("\n")
     dados = []
+
     for linha in linhas:
-        mes_ano = linha[0]
-        mes, ano = mes_ano.split('/')
+        if "/" in linha and any(c.isdigit() for c in linha):
+            partes = linha.split()
+            if len(partes) >= 4:
+                data = partes[0]
+                faturamento = partes[1].replace(".", "").replace(",", ".")
+                comandas = partes[2]
+                ticket = partes[3].replace(",", ".")
+                ano, mes = data.split("/")
 
-        faturamento = float(linha[1].replace('.', '').replace(',', '.'))
-        comandas = int(linha[2].replace('.', '').replace(',', ''))
-        ticket_medio = float(linha[3].replace('.', '').replace(',', '.'))
-
-        dados.append({
-            "Ano": ano,
-            "Mês": mes,
-            "Faturamento": faturamento,
-            "Comandas": comandas,
-            "Ticket Médio": ticket_medio
-        })
+                dados.append({
+                    "Ano": ano,
+                    "Mês": mes,
+                    "Faturamento": float(faturamento),
+                    "Comandas": int(comandas),
+                    "Ticket Médio": float(ticket)
+                })
 
     return pd.DataFrame(dados)
 
+# 📤 Upload dos PDFs
+st.sidebar.header("📑 Enviar PDFs de Faturamento")
+uploaded_files = st.sidebar.file_uploader("Escolha os PDFs", type="pdf", accept_multiple_files=True)
 
-# 🗂️ Upload de múltiplos PDFs
-st.sidebar.subheader("📤 Enviar PDFs de Faturamento")
-uploaded_files = st.sidebar.file_uploader(
-    "Escolha os PDFs (pode selecionar múltiplos)", type="pdf", accept_multiple_files=True)
+dfs = []
 
 if uploaded_files:
-    df_total = pd.DataFrame()
+    for file in uploaded_files:
+        st.info(f"Lendo arquivo: {file.name}")
+        df = extrair_dados_pdf(file)
+        dfs.append(df)
 
-    for uploaded_file in uploaded_files:
-        # Pegando o nome do arquivo para extrair o ano (ex.: 2024.pdf → 2024)
-        nome_arquivo = uploaded_file.name
-        ano_arquivo = re.findall(r'\d{4}', nome_arquivo)
-        ano_pdf = ano_arquivo[0] if ano_arquivo else "Desconhecido"
+    if dfs:
+        df_final = pd.concat(dfs, ignore_index=True)
 
-        st.success(f"🗂️ Lendo arquivo: {nome_arquivo}")
+        st.subheader("📄 Dados extraídos:")
+        st.dataframe(df_final)
 
-        df_pdf = extrair_dados_pdf(uploaded_file, ano_pdf)
-        df_total = pd.concat([df_total, df_pdf], ignore_index=True)
+        # 🔄 Atualiza o Google Sheets
+        if st.button("🔗 Enviar dados para Google Sheets"):
+            sheet.clear()  # ⚠️ Limpa antes de atualizar
+            sheet.update([df_final.columns.values.tolist()] + df_final.values.tolist())
+            st.success("Dados enviados para Google Sheets com sucesso!")
 
-    st.subheader("📊 Dados extraídos:")
-    st.dataframe(df_total)
+# 📊 Dashboard de Faturamento
+st.title("💈 Sr. Saldanha | Dashboard de Faturamento")
 
-    # 🔄 Atualizando Google Sheets
-    sheet.clear()
-    sheet.update([df_total.columns.values.tolist()] + df_total.values.tolist())
-    st.success("✅ Dados enviados para o Google Sheets com sucesso!")
+try:
+    dados = sheet.get_all_records()
+    df = pd.DataFrame(dados)
+
+    # 🧽 Tratamento
+    df["Ano"] = df["Ano"].astype(str)
+    df["Mês"] = df["Mês"].astype(str)
+
+    # 🚥 KPIs principais
+    st.subheader("📈 Indicadores")
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("💰 Faturamento Total", f'R$ {df["Faturamento"].sum():,.2f}')
+    col2.metric("📋 Total de Comandas", int(df["Comandas"].sum()))
+    col3.metric("🎟️ Ticket Médio", f'R$ {df["Ticket Médio"].mean():,.2f}')
 
     st.markdown("---")
 
-# 🔄 Lendo dados do Sheets
-data = sheet.get_all_records()
-df = pd.DataFrame(data)
+    # 🎛️ Filtros
+    st.sidebar.header("Filtros")
+    ano = st.sidebar.selectbox("Ano", df["Ano"].unique())
+    mes = st.sidebar.selectbox("Mês", df["Mês"].unique())
 
-# 🖥️ Layout do Dashboard
-st.set_page_config(page_title="Dashboard Sr. Saldanha", layout="wide")
-st.title("💈 Sr. Saldanha | Dashboard de Faturamento")
+    df_filtrado = df[(df["Ano"] == ano) & (df["Mês"] == mes)]
 
-# 🚦 KPIs
-col1, col2, col3 = st.columns(3)
-col1.metric("💰 Faturamento Total", f'R$ {df["Faturamento"].sum():,.2f}')
-col2.metric("📋 Total de Comandas", int(df["Comandas"].sum()))
-col3.metric("🎟️ Ticket Médio", f'R$ {df["Ticket Médio"].mean():,.2f}')
+    # 📈 Gráficos
+    st.subheader("🚀 Evolução de Faturamento por Mês")
+    graf1 = df.groupby(["Ano", "Mês"])["Faturamento"].sum().reset_index()
+    st.line_chart(graf1.pivot(index="Mês", columns="Ano", values="Faturamento"))
 
-st.markdown("---")
+    st.subheader("📊 Ticket Médio por Mês")
+    graf2 = df.groupby(["Ano", "Mês"])["Ticket Médio"].mean().reset_index()
+    st.line_chart(graf2.pivot(index="Mês", columns="Ano", values="Ticket Médio"))
 
-# 🎯 Filtros
-st.sidebar.header("Filtros")
-ano = st.sidebar.selectbox("Ano", df["Ano"].unique())
-mes = st.sidebar.selectbox("Mês", df["Mês"].unique())
+    # 📅 Comparativo de Períodos
+    st.subheader("📅 Comparativo de Períodos")
 
-df_filtrado = df[(df["Ano"] == ano) & (df["Mês"] == mes)]
+    col4, col5 = st.columns(2)
+    with col4:
+        ano1 = st.selectbox("Período 1 - Ano", df["Ano"].unique())
+        mes1 = st.selectbox("Período 1 - Mês", df["Mês"].unique())
 
-# 📈 Gráficos
-st.subheader("🚀 Faturamento por Mês")
-graf1 = df.groupby(["Ano", "Mês"])["Faturamento"].sum().reset_index()
-st.line_chart(graf1.pivot(index="Mês", columns="Ano", values="Faturamento"))
+    with col5:
+        ano2 = st.selectbox("Período 2 - Ano", df["Ano"].unique(), key="ano2")
+        mes2 = st.selectbox("Período 2 - Mês", df["Mês"].unique(), key="mes2")
 
-st.subheader("📊 Ticket Médio por Mês")
-graf2 = df.groupby(["Ano", "Mês"])["Ticket Médio"].mean().reset_index()
-st.line_chart(graf2.pivot(index="Mês", columns="Ano", values="Ticket Médio"))
+    filtro1 = (df["Ano"] == ano1) & (df["Mês"] == mes1)
+    filtro2 = (df["Ano"] == ano2) & (df["Mês"] == mes2)
 
-# 📑 Tabela Detalhada
-st.subheader("📑 Dados Detalhados")
-st.dataframe(df)
+    fat1 = df.loc[filtro1, "Faturamento"].sum()
+    fat2 = df.loc[filtro2, "Faturamento"].sum()
+    dif = fat2 - fat1
+    perc = (dif / fat1) * 100 if fat1 != 0 else 0
+
+    st.write(f"**Período 1:** {mes1}/{ano1} → **R$ {fat1:,.2f}**")
+    st.write(f"**Período 2:** {mes2}/{ano2} → **R$ {fat2:,.2f}**")
+    st.write(f"**Variação:** {'🔺' if perc > 0 else '🔻'} {perc:.2f}%")
+
+    st.markdown("---")
+
+    # 📑 Tabela Detalhada
+    st.subheader("📑 Dados Detalhados")
+    st.dataframe(df)
+
+except Exception as e:
+    st.warning("Nenhum dado encontrado ou erro na conexão com o Google Sheets.")
+    st.exception(e)
