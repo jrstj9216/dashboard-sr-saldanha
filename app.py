@@ -74,7 +74,7 @@ if uploaded_files:
         total_comandas = df_2025['Número de comandas'].sum()  # <- Corrigido aqui
         ticket_medio = df_2025['Média Faturado'].mean()
 
-        st.subheader("📊 Total 2025")
+        st.subheader("📊 Total faturado este mês - 2025")
         col1, col2, col3 = st.columns(3)
 
         col1.metric("💰 Faturamento Total", f"R$ {faturamento_total:,.2f}")
