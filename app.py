@@ -3,6 +3,7 @@ import pandas as pd
 import fitz  # PyMuPDF
 import gspread
 from google.oauth2.service_account import Credentials
+import re
 
 # 🎯 Autenticação com Google Sheets
 scope = ["https://www.googleapis.com/auth/spreadsheets",
@@ -18,45 +19,64 @@ spreadsheet = client.open("Automacao_Barbearia")
 sheet = spreadsheet.worksheet("Dados_Faturamento")
 
 
-# 🧠 Função para extrair texto do PDF
-def extrair_texto_pdf(pdf):
+# 🔍 Função para extrair dados do PDF
+def extrair_dados_pdf(file, ano_pdf):
     texto = ""
+    pdf = fitz.open(stream=file.read(), filetype="pdf")
     for page in pdf:
         texto += page.get_text()
-    return texto
+
+    # Regex para capturar linhas tipo: 01/2024   45.000,00   900   50,00
+    linhas = re.findall(r'(\d{2}/\d{4})\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)', texto)
+
+    dados = []
+    for linha in linhas:
+        mes_ano = linha[0]
+        mes, ano = mes_ano.split('/')
+
+        faturamento = float(linha[1].replace('.', '').replace(',', '.'))
+        comandas = int(linha[2].replace('.', '').replace(',', ''))
+        ticket_medio = float(linha[3].replace('.', '').replace(',', '.'))
+
+        dados.append({
+            "Ano": ano,
+            "Mês": mes,
+            "Faturamento": faturamento,
+            "Comandas": comandas,
+            "Ticket Médio": ticket_medio
+        })
+
+    return pd.DataFrame(dados)
 
 
-# 📤 Upload do PDF
-st.sidebar.subheader("📤 Enviar PDF de Faturamento")
-uploaded_file = st.sidebar.file_uploader("Escolha o PDF", type="pdf")
+# 🗂️ Upload de múltiplos PDFs
+st.sidebar.subheader("📤 Enviar PDFs de Faturamento")
+uploaded_files = st.sidebar.file_uploader(
+    "Escolha os PDFs (pode selecionar múltiplos)", type="pdf", accept_multiple_files=True)
 
-if uploaded_file:
-    pdf = fitz.open(stream=uploaded_file.read(), filetype="pdf")
-    texto = extrair_texto_pdf(pdf)
+if uploaded_files:
+    df_total = pd.DataFrame()
 
-    st.subheader("📝 Texto extraído do PDF:")
-    st.write(texto)
+    for uploaded_file in uploaded_files:
+        # Pegando o nome do arquivo para extrair o ano (ex.: 2024.pdf → 2024)
+        nome_arquivo = uploaded_file.name
+        ano_arquivo = re.findall(r'\d{4}', nome_arquivo)
+        ano_pdf = ano_arquivo[0] if ano_arquivo else "Desconhecido"
 
-    # 🔍 Você pode aqui fazer o parser do texto para gerar dataframe
-    # ⚠️ Exemplo abaixo é fictício, ajuste conforme seu PDF
-    data = {
-        "Ano": ["2024", "2024"],
-        "Mês": ["Janeiro", "Fevereiro"],
-        "Faturamento": [16200, 15200],
-        "Comandas": [104, 121],
-        "Ticket Médio": [156, 150]
-    }
+        st.success(f"🗂️ Lendo arquivo: {nome_arquivo}")
 
-    df_pdf = pd.DataFrame(data)
+        df_pdf = extrair_dados_pdf(uploaded_file, ano_pdf)
+        df_total = pd.concat([df_total, df_pdf], ignore_index=True)
+
     st.subheader("📊 Dados extraídos:")
-    st.dataframe(df_pdf)
+    st.dataframe(df_total)
 
-    # 🔄 Enviando para Google Sheets
+    # 🔄 Atualizando Google Sheets
     sheet.clear()
-    sheet.update([df_pdf.columns.values.tolist()] + df_pdf.values.tolist())
+    sheet.update([df_total.columns.values.tolist()] + df_total.values.tolist())
     st.success("✅ Dados enviados para o Google Sheets com sucesso!")
 
-st.markdown("---")
+    st.markdown("---")
 
 # 🔄 Lendo dados do Sheets
 data = sheet.get_all_records()
@@ -89,46 +109,6 @@ st.line_chart(graf1.pivot(index="Mês", columns="Ano", values="Faturamento"))
 st.subheader("📊 Ticket Médio por Mês")
 graf2 = df.groupby(["Ano", "Mês"])["Ticket Médio"].mean().reset_index()
 st.line_chart(graf2.pivot(index="Mês", columns="Ano", values="Ticket Médio"))
-
-# 📑 Tabela Detalhada
-st.subheader("📑 Dados Detalhados")
-st.dataframe(df)
-df_filtrado = df[(df["Ano"] == ano) & (df["Mês"] == mes)]
-
-# 📈 Gráficos
-st.subheader("🚀 Evolução de Faturamento por Mês")
-graf1 = df.groupby(["Ano", "Mês"])["Faturamento"].sum().reset_index()
-st.line_chart(graf1.pivot(index="Mês", columns="Ano", values="Faturamento"))
-
-st.subheader("📊 Ticket Médio por Mês")
-graf2 = df.groupby(["Ano", "Mês"])["Ticket Médio"].mean().reset_index()
-st.line_chart(graf2.pivot(index="Mês", columns="Ano", values="Ticket Médio"))
-
-# 📅 Comparativo de Períodos
-st.subheader("📅 Comparativo de Períodos")
-
-col4, col5 = st.columns(2)
-with col4:
-    ano1 = st.selectbox("Período 1 - Ano", df["Ano"].unique())
-    mes1 = st.selectbox("Período 1 - Mês", df["Mês"].unique())
-
-with col5:
-    ano2 = st.selectbox("Período 2 - Ano", df["Ano"].unique(), key="ano2")
-    mes2 = st.selectbox("Período 2 - Mês", df["Mês"].unique(), key="mes2")
-
-filtro1 = (df["Ano"] == ano1) & (df["Mês"] == mes1)
-filtro2 = (df["Ano"] == ano2) & (df["Mês"] == mes2)
-
-fat1 = df.loc[filtro1, "Faturamento"].sum()
-fat2 = df.loc[filtro2, "Faturamento"].sum()
-dif = fat2 - fat1
-perc = (dif / fat1) * 100 if fat1 != 0 else 0
-
-st.write(f"**Período 1:** {mes1}/{ano1} → **R$ {fat1:,.2f}**")
-st.write(f"**Período 2:** {mes2}/{ano2} → **R$ {fat2:,.2f}**")
-st.write(f"**Variação:** {'🔺' if perc > 0 else '🔻'} {perc:.2f}%")
-
-st.markdown("---")
 
 # 📑 Tabela Detalhada
 st.subheader("📑 Dados Detalhados")
