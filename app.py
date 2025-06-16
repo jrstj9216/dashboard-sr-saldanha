@@ -122,24 +122,24 @@ try:
     df["Ano"] = df["Ano"].astype(str)
     df["Mês"] = df["Mês"].astype(str)
 
-    # 🚥 KPIs principais
-    st.subheader("📈 Indicadores")
+    # 🎯 Filtros aplicados aos Indicadores
+    st.sidebar.header("🎛️ Filtros dos Indicadores")
+    ano_filtro = st.sidebar.selectbox("Ano", sorted(df["Ano"].unique()))
+    mes_filtro = st.sidebar.selectbox("Mês", sorted(df["Mês"].unique()))
+
+    df_indicadores = df[(df["Ano"] == ano_filtro) & (df["Mês"] == mes_filtro)]
+
+    # 🚥 KPIs principais com filtro aplicado
+    st.subheader(f"📈 Indicadores para {mes_filtro}/{ano_filtro}")
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("💰 Faturamento Total", f'R$ {df["Faturamento"].sum():,.2f}')
-    col2.metric("🧾 Total de Comandas", int(df["Comandas"].sum()))
-    col3.metric("🎟️ Ticket Médio", f'R$ {df["Ticket Médio"].mean():,.2f}')
+    col1.metric("💰 Faturamento Total", f'R$ {df_indicadores["Faturamento"].sum():,.2f}')
+    col2.metric("🧾 Total de Comandas", int(df_indicadores["Comandas"].sum()))
+    col3.metric("🎟️ Ticket Médio", f'R$ {df_indicadores["Ticket Médio"].mean():,.2f}')
 
     st.markdown("---")
 
-    # 🎯 Filtros
-    st.sidebar.header("🎛️ Filtros")
-    ano = st.sidebar.selectbox("Ano", sorted(df["Ano"].unique()))
-    mes = st.sidebar.selectbox("Mês", sorted(df["Mês"].unique()))
-
-    df_filtrado = df[(df["Ano"] == ano) & (df["Mês"] == mes)]
-
-    # 📈 Gráfico Faturamento
+    # 📈 Gráfico Faturamento (sem filtro aplicado, visão geral)
     st.subheader("🚀 Evolução do Faturamento")
     graf1 = df.groupby(["Ano", "Mês"])["Faturamento"].sum().reset_index()
     st.line_chart(graf1.pivot(index="Mês", columns="Ano", values="Faturamento"))
