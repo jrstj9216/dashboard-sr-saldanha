@@ -4,40 +4,8 @@ import fitz  # PyMuPDF
 import gspread
 from google.oauth2.service_account import Credentials
 
-
-# ⚙️ Configuração da página
+# ⚙️ Configuração da página (deve ser sempre a primeira linha Streamlit)
 st.set_page_config(page_title="Dashboard Sr. Saldanha", layout="wide")
-
-# 🎨 Estilo (Tema escuro personalizado)
-st.markdown("""
-    <style>
-    body {
-        background-color: #000000;
-        color: white;
-    }
-    .stApp {
-        background-color: #000000;
-    }
-    h1, h2, h3, h4, h5, h6 {
-        color: white;
-    }
-    div[data-testid="stMetricValue"] {
-        color: white;
-        font-size: 30px;
-    }
-    div[data-testid="stMetricLabel"] {
-        color: white;
-    }
-    .stDataFrame {
-        background-color: #111111;
-    }
-    .stButton > button {
-        color: white;
-        background-color: #444444;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
 
 # 🔐 Autenticação com Google Sheets
 scope = ["https://www.googleapis.com/auth/spreadsheets",
@@ -86,72 +54,70 @@ def extrair_dados_pdf(uploaded_file):
     return pd.DataFrame(dados)
 
 
-# 📥 Upload dos PDFs
-st.sidebar.header("📑 Upload dos PDFs de Faturamento")
+# 📤 Upload dos PDFs
+st.sidebar.header("📑 Enviar PDFs de Faturamento")
 uploaded_files = st.sidebar.file_uploader(
-    "Selecione um ou mais arquivos PDF", type="pdf", accept_multiple_files=True
+    "Escolha os PDFs", type="pdf", accept_multiple_files=True
 )
 
 dfs = []
 
 if uploaded_files:
     for file in uploaded_files:
-        st.info(f"📥 Lendo arquivo: {file.name}")
+        st.info(f"Lendo arquivo: {file.name}")
         df = extrair_dados_pdf(file)
         dfs.append(df)
 
     if dfs:
         df_final = pd.concat(dfs, ignore_index=True)
 
-        st.subheader("📄 Dados extraídos dos PDFs")
+        st.subheader("📄 Dados extraídos:")
         st.dataframe(df_final)
 
-        if st.button("🚀 Enviar dados para Google Sheets"):
+        if st.button("🔗 Enviar dados para Google Sheets"):
             sheet.clear()
             sheet.update([df_final.columns.values.tolist()] + df_final.values.tolist())
-            st.success("✅ Dados enviados para Google Sheets com sucesso!")
+            st.success("Dados enviados para Google Sheets com sucesso!")
 
-
-# 🖥️ Dashboard de Faturamento
-st.title("💈 Dashboard Sr. Saldanha | Dados de Faturamento")
+# 🚦 Dashboard
+st.title("💈 Sr. Saldanha | Dashboard de Faturamento")
 
 try:
     dados = sheet.get_all_records()
     df = pd.DataFrame(dados)
 
+    # 🧽 Tratamento
     df["Ano"] = df["Ano"].astype(str)
     df["Mês"] = df["Mês"].astype(str)
 
-    # 🎯 Filtros aplicados apenas aos Indicadores
-    st.sidebar.header("🎛️ Filtros dos Indicadores")
-    ano_filtro_ind = st.sidebar.selectbox("Ano para Indicadores", sorted(df["Ano"].unique()), key="ano_indicador")
-    mes_filtro_ind = st.sidebar.selectbox("Mês para Indicadores", sorted(df["Mês"].unique()), key="mes_indicador")
+    # 🎯 Filtros
+    st.sidebar.header("Filtros")
+    ano_filtro = st.sidebar.selectbox("Ano", df["Ano"].unique())
+    mes_filtro = st.sidebar.selectbox("Mês", df["Mês"].unique())
 
-    df_indicadores = df[(df["Ano"] == ano_filtro_ind) & (df["Mês"] == mes_filtro_ind)]
+    df_filtrado = df[(df["Ano"] == ano_filtro) & (df["Mês"] == mes_filtro)]
 
-    # 🚥 KPIs principais com filtro aplicado
-    st.subheader(f"📈 Indicadores para {mes_filtro_ind}/{ano_filtro_ind}")
-
+    # 🚥 KPIs com base no filtro
+    st.subheader("📈 Indicadores")
     col1, col2, col3 = st.columns(3)
-    col1.metric("💰 Faturamento Total", f'R$ {df_indicadores["Faturamento"].sum():,.2f}')
-    col2.metric("🧾 Total de Comandas", int(df_indicadores["Comandas"].sum()))
-    col3.metric("🎟️ Ticket Médio", f'R$ {df_indicadores["Ticket Médio"].mean():,.2f}')
+
+    col1.metric("💰 Faturamento Total", f'R$ {df_filtrado["Faturamento"].sum():,.2f}')
+    col2.metric("📋 Total de Comandas", int(df_filtrado["Comandas"].sum()))
+    col3.metric("🎟️ Ticket Médio", f'R$ {df_filtrado["Ticket Médio"].mean():,.2f}')
 
     st.markdown("---")
 
-    # 📈 Gráfico Faturamento (Visão Geral)
-    st.subheader("🚀 Evolução do Faturamento")
+    # 📈 Gráfico Faturamento por Mês
+    st.subheader("🚀 Evolução de Faturamento por Mês")
     graf1 = df.groupby(["Ano", "Mês"])["Faturamento"].sum().reset_index()
     st.line_chart(graf1.pivot(index="Mês", columns="Ano", values="Faturamento"))
 
-    # 📊 Gráfico Ticket Médio (Visão Geral)
-    st.subheader("🎯 Ticket Médio por Mês")
+    # 📊 Gráfico Ticket Médio por Mês
+    st.subheader("📊 Ticket Médio por Mês")
     graf2 = df.groupby(["Ano", "Mês"])["Ticket Médio"].mean().reset_index()
     st.line_chart(graf2.pivot(index="Mês", columns="Ano", values="Ticket Médio"))
 
-    st.markdown("---")
-
-    # 📅 Comparativo de Períodos
+    # 🗓️ Comparativo de Períodos
     st.subheader("📅 Comparativo de Períodos")
 
     col4, col5 = st.columns(2)
@@ -177,10 +143,10 @@ try:
 
     st.markdown("---")
 
-    # 📑 Tabela Detalhada (Visão Geral)
+    # 📑 Tabela Detalhada
     st.subheader("📑 Dados Detalhados")
     st.dataframe(df)
 
 except Exception as e:
-    st.warning("⚠️ Nenhum dado encontrado ou erro na conexão com o Google Sheets.")
+    st.warning("Nenhum dado encontrado ou erro na conexão com o Google Sheets.")
     st.exception(e)
