@@ -4,10 +4,11 @@ import fitz  # PyMuPDF
 import gspread
 from google.oauth2.service_account import Credentials
 
+
 # ⚙️ Configuração da página
 st.set_page_config(page_title="Dashboard Sr. Saldanha", layout="wide")
 
-# 🎨 Estilo customizado (CSS)
+# 🎨 Estilo (Tema escuro personalizado)
 st.markdown("""
     <style>
     body {
@@ -20,26 +21,23 @@ st.markdown("""
     h1, h2, h3, h4, h5, h6 {
         color: white;
     }
-    .stMetric {
-        background-color: #111;
-        padding: 20px;
-        border-radius: 10px;
+    div[data-testid="stMetricValue"] {
+        color: white;
+        font-size: 30px;
+    }
+    div[data-testid="stMetricLabel"] {
+        color: white;
     }
     .stDataFrame {
-        background-color: #111;
+        background-color: #111111;
     }
-    .css-1d391kg {
-        background-color: #000000;
-    }
-    .block-container {
-        padding-top: 2rem;
-    }
-    .stButton>button {
+    .stButton > button {
         color: white;
         background-color: #444444;
     }
     </style>
 """, unsafe_allow_html=True)
+
 
 # 🔐 Autenticação com Google Sheets
 scope = ["https://www.googleapis.com/auth/spreadsheets",
@@ -57,7 +55,7 @@ spreadsheet = client.open("Automacao_Barbearia")
 sheet = spreadsheet.worksheet("Dados_Faturamento")
 
 
-# 🚀 Função para extrair dados do PDF
+# 🚀 Função para extrair dados dos PDFs
 def extrair_dados_pdf(uploaded_file):
     texto = ""
     with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
@@ -88,40 +86,39 @@ def extrair_dados_pdf(uploaded_file):
     return pd.DataFrame(dados)
 
 
-# 📤 Upload dos PDFs
-st.sidebar.header("📑 Enviar PDFs de Faturamento")
+# 📥 Upload dos PDFs
+st.sidebar.header("📑 Upload dos PDFs de Faturamento")
 uploaded_files = st.sidebar.file_uploader(
-    "Escolha os PDFs (pode selecionar múltiplos)", type="pdf", accept_multiple_files=True
+    "Selecione um ou mais arquivos PDF", type="pdf", accept_multiple_files=True
 )
 
 dfs = []
 
 if uploaded_files:
     for file in uploaded_files:
-        st.info(f"Lendo arquivo: {file.name}")
+        st.info(f"📥 Lendo arquivo: {file.name}")
         df = extrair_dados_pdf(file)
         dfs.append(df)
 
     if dfs:
         df_final = pd.concat(dfs, ignore_index=True)
 
-        st.subheader("📄 Dados extraídos:")
+        st.subheader("📄 Dados extraídos dos PDFs")
         st.dataframe(df_final)
 
-        # 🔄 Atualiza o Google Sheets
-        if st.button("🔗 Enviar dados para Google Sheets"):
-            sheet.clear()  # ⚠️ Limpa antes de atualizar
+        if st.button("🚀 Enviar dados para Google Sheets"):
+            sheet.clear()
             sheet.update([df_final.columns.values.tolist()] + df_final.values.tolist())
             st.success("✅ Dados enviados para Google Sheets com sucesso!")
 
-# 📊 Dashboard de Faturamento
-st.title("💈 Dados de Faturamento")
+
+# 🖥️ Dashboard de Faturamento
+st.title("💈 Dashboard Sr. Saldanha | Dados de Faturamento")
 
 try:
     dados = sheet.get_all_records()
     df = pd.DataFrame(dados)
 
-    # 🧽 Tratamento
     df["Ano"] = df["Ano"].astype(str)
     df["Mês"] = df["Mês"].astype(str)
 
@@ -130,26 +127,29 @@ try:
 
     col1, col2, col3 = st.columns(3)
     col1.metric("💰 Faturamento Total", f'R$ {df["Faturamento"].sum():,.2f}')
-    col2.metric("📋 Total de Comandas", int(df["Comandas"].sum()))
+    col2.metric("🧾 Total de Comandas", int(df["Comandas"].sum()))
     col3.metric("🎟️ Ticket Médio", f'R$ {df["Ticket Médio"].mean():,.2f}')
 
     st.markdown("---")
 
-    # 🎛️ Filtros
-    st.sidebar.header("🎯 Filtros")
+    # 🎯 Filtros
+    st.sidebar.header("🎛️ Filtros")
     ano = st.sidebar.selectbox("Ano", sorted(df["Ano"].unique()))
     mes = st.sidebar.selectbox("Mês", sorted(df["Mês"].unique()))
 
     df_filtrado = df[(df["Ano"] == ano) & (df["Mês"] == mes)]
 
-    # 📈 Gráficos
-    st.subheader("🚀 Evolução de Faturamento por Mês")
+    # 📈 Gráfico Faturamento
+    st.subheader("🚀 Evolução do Faturamento")
     graf1 = df.groupby(["Ano", "Mês"])["Faturamento"].sum().reset_index()
     st.line_chart(graf1.pivot(index="Mês", columns="Ano", values="Faturamento"))
 
-    st.subheader("📊 Ticket Médio por Mês")
+    # 📊 Gráfico Ticket Médio
+    st.subheader("🎯 Ticket Médio por Mês")
     graf2 = df.groupby(["Ano", "Mês"])["Ticket Médio"].mean().reset_index()
     st.line_chart(graf2.pivot(index="Mês", columns="Ano", values="Ticket Médio"))
+
+    st.markdown("---")
 
     # 📅 Comparativo de Períodos
     st.subheader("📅 Comparativo de Períodos")
