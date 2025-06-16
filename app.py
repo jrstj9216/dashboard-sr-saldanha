@@ -4,7 +4,7 @@ import fitz  # PyMuPDF
 import gspread
 from google.oauth2.service_account import Credentials
 
-# ⚙️ Configuração da página (deve ser sempre a primeira linha Streamlit)
+# ⚙️ Configuração da página
 st.set_page_config(page_title="Dashboard Sr. Saldanha", layout="wide")
 
 # 🔐 Autenticação com Google Sheets
@@ -22,8 +22,7 @@ client = gspread.authorize(credentials)
 spreadsheet = client.open("Automacao_Barbearia")
 sheet = spreadsheet.worksheet("Dados_Faturamento")
 
-
-# 🚀 Função para extrair dados dos PDFs
+# 🚀 Função para extrair dados do PDF
 def extrair_dados_pdf(uploaded_file):
     texto = ""
     with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
@@ -56,9 +55,7 @@ def extrair_dados_pdf(uploaded_file):
 
 # 📤 Upload dos PDFs
 st.sidebar.header("📑 Enviar PDFs de Faturamento")
-uploaded_files = st.sidebar.file_uploader(
-    "Escolha os PDFs", type="pdf", accept_multiple_files=True
-)
+uploaded_files = st.sidebar.file_uploader("Escolha os PDFs", type="pdf", accept_multiple_files=True)
 
 dfs = []
 
@@ -79,45 +76,65 @@ if uploaded_files:
             sheet.update([df_final.columns.values.tolist()] + df_final.values.tolist())
             st.success("Dados enviados para Google Sheets com sucesso!")
 
-# 🚦 Dashboard
+# 📊 Dashboard
 st.title("💈 Sr. Saldanha | Dashboard de Faturamento")
 
 try:
     dados = sheet.get_all_records()
     df = pd.DataFrame(dados)
 
-    # 🧽 Tratamento
     df["Ano"] = df["Ano"].astype(str)
     df["Mês"] = df["Mês"].astype(str)
 
-    # 🎯 Filtros
-    st.sidebar.header("Filtros")
-    ano_filtro = st.sidebar.selectbox("Ano", df["Ano"].unique())
-    mes_filtro = st.sidebar.selectbox("Mês", df["Mês"].unique())
+    # 🎯 Filtros aplicados SOMENTE para os indicadores
+    st.sidebar.header("📌 Filtros dos Indicadores")
+    anos_disponiveis = sorted(df["Ano"].unique())
+    meses_disponiveis = sorted(df["Mês"].unique())
 
-    df_filtrado = df[(df["Ano"] == ano_filtro) & (df["Mês"] == mes_filtro)]
+    ano_filtro = st.sidebar.selectbox("Ano", ["Todos"] + anos_disponiveis)
+    mes_filtro = st.sidebar.selectbox("Mês", ["Todos"] + meses_disponiveis)
 
-    # 🚥 KPIs com base no filtro
-    st.subheader("📈 Indicadores")
+    if ano_filtro != "Todos" and mes_filtro != "Todos":
+        df_kpi = df[(df["Ano"] == ano_filtro) & (df["Mês"] == mes_filtro)]
+    elif ano_filtro != "Todos":
+        df_kpi = df[df["Ano"] == ano_filtro]
+    elif mes_filtro != "Todos":
+        df_kpi = df[df["Mês"] == mes_filtro]
+    else:
+        df_kpi = df
+
+    # 🚥 Bloco de Indicadores
+    st.subheader("📊 Indicadores")
+
     col1, col2, col3 = st.columns(3)
 
-    col1.metric("💰 Faturamento Total", f'R$ {df_filtrado["Faturamento"].sum():,.2f}')
-    col2.metric("📋 Total de Comandas", int(df_filtrado["Comandas"].sum()))
-    col3.metric("🎟️ Ticket Médio", f'R$ {df_filtrado["Ticket Médio"].mean():,.2f}')
+    col1.metric(
+        "💰 Faturamento Total",
+        f'R$ {df_kpi["Faturamento"].sum():,.2f}'
+    )
+
+    col2.metric(
+        "📋 Total de Comandas",
+        int(df_kpi["Comandas"].sum())
+    )
+
+    col3.metric(
+        "🎟️ Ticket Médio",
+        f'R$ {df_kpi["Ticket Médio"].mean():,.2f}'
+    )
 
     st.markdown("---")
 
-    # 📈 Gráfico Faturamento por Mês
+    # 🚀 Evolução de Faturamento por Mês (sem filtro)
     st.subheader("🚀 Evolução de Faturamento por Mês")
     graf1 = df.groupby(["Ano", "Mês"])["Faturamento"].sum().reset_index()
     st.line_chart(graf1.pivot(index="Mês", columns="Ano", values="Faturamento"))
 
-    # 📊 Gráfico Ticket Médio por Mês
     st.subheader("📊 Ticket Médio por Mês")
     graf2 = df.groupby(["Ano", "Mês"])["Ticket Médio"].mean().reset_index()
     st.line_chart(graf2.pivot(index="Mês", columns="Ano", values="Ticket Médio"))
 
-    # 🗓️ Comparativo de Períodos
+    # 📅 Comparativo de Períodos (sem filtro)
     st.subheader("📅 Comparativo de Períodos")
 
     col4, col5 = st.columns(2)
@@ -143,7 +160,7 @@ try:
 
     st.markdown("---")
 
-    # 📑 Tabela Detalhada
+    # 📑 Tabela Detalhada (sem filtro)
     st.subheader("📑 Dados Detalhados")
     st.dataframe(df)
 
