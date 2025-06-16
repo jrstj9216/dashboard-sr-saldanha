@@ -71,7 +71,7 @@ if uploaded_files:
 
         # 🧠 KPIs principais
         faturamento_total = df_2025['Faturado'].sum()
-        total_comandas = df_2025['Número de com.'].sum()  # <- Corrigido aqui
+        total_comandas = df_2025['Número de comandas'].sum()  # <- Corrigido aqui
         ticket_medio = df_2025['Média Faturado'].mean()
 
         st.subheader("📊 Total 2025")
