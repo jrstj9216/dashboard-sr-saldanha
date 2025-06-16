@@ -3,12 +3,11 @@ import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 
-# 🎨 Configuração da Página
+# 🎨 Configuração da página
 st.set_page_config(page_title="Dashboard Sr. Saldanha", layout="wide")
 
-# 🔐 Autenticação com Google Sheets
-scope = ["https://www.googleapis.com/auth/spreadsheets",
-         "https://www.googleapis.com/auth/drive"]
+# 🔑 Autenticação com Google Sheets
+scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 
 credentials = Credentials.from_service_account_info(
     st.secrets["gcp_service_account"],
@@ -17,54 +16,69 @@ credentials = Credentials.from_service_account_info(
 
 client = gspread.authorize(credentials)
 
-# 📑 Nome do arquivo e da aba no Google Sheets
+# 🗒️ Conectar à planilha
 spreadsheet = client.open("Automacao_Barbearia")
 sheet = spreadsheet.worksheet("Dados_Faturamento")
 
+# 🧠 Função para extrair dados dos arquivos Excel
+def extrair_dados_excel(uploaded_file):
+    df = pd.read_excel(uploaded_file)
+    df.columns = df.columns.str.strip()  # Remove espaços nos nomes das colunas
+    return df
 
-# 📤 Upload do Arquivo Excel
-st.sidebar.header("📄 Enviar Arquivo Excel de Faturamento")
-uploaded_file = st.sidebar.file_uploader(
-    "Escolha o arquivo Excel",
-    type=["xlsx"]
+
+# ☁️ Upload dos arquivos
+st.sidebar.header("📄 Enviar Arquivos Excel de Faturamento")
+uploaded_files = st.sidebar.file_uploader(
+    "Escolha os arquivos Excel", type=["xlsx"], accept_multiple_files=True
 )
 
-if uploaded_file is not None:
-    df = pd.read_excel(uploaded_file)
-    df.columns = df.columns.str.strip()  # Remove espaços extras dos nomes das colunas
+dfs = []
 
-    required_columns = {'Data', 'Faturado', 'Número de com.', 'Média Faturado'}
-    if required_columns.issubset(df.columns):
+if uploaded_files:
+    for file in uploaded_files:
+        st.info(f"Lendo arquivo: {file.name}")
+        df = extrair_dados_excel(file)
+        dfs.append(df)
 
-        df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
+    if dfs:
+        df_final = pd.concat(dfs, ignore_index=True)
 
-        # 🔥 Atualiza Google Sheets (sobrescreve tudo)
-        try:
-            sheet.clear()  # Limpa os dados existentes
-            sheet.update(
-                [df.columns.values.tolist()] + df.values.tolist()
-            )
-            st.success("✅ Dados enviados para Google Sheets com sucesso!")
-        except Exception as e:
-            st.error(f"❌ Erro ao enviar dados para Google Sheets: {e}")
+        # Limpa e formata a coluna de data
+        df_final["Data Comanda"] = pd.to_datetime(df_final["Data Comanda"], format="%d/%m/%Y")
 
-        # 🔥 Bloco - Faturado Este Mês
+        # ✨ Envia dados para o Google Sheets (substitui tudo pelo novo)
+        sheet.clear()
+        sheet.update([df_final.columns.values.tolist()] + df_final.values.tolist())
+
+        st.success("✅ Dados enviados para o Google Sheets com sucesso!")
+
+        st.subheader("📊 Dados extraídos dos arquivos Excel:")
+        st.dataframe(df_final)
+
+# 🧠 Leitura dos dados do Google Sheets
+try:
+    dados = sheet.get_all_records()
+    df = pd.DataFrame(dados)
+
+    if not df.empty:
+        df["Data Comanda"] = pd.to_datetime(df["Data Comanda"], format="%d/%m/%Y")
+
+        # 🎯 KPIs
+        faturamento_total = df["Valor"].sum()
+        total_comandas = df.shape[0]
+        ticket_medio = faturamento_total / total_comandas if total_comandas != 0 else 0
+
         st.subheader("📊 Faturado Este Mês")
-
-        faturamento_total = df["Faturado"].sum()
-        total_comandas = df["Número de com."].sum()
-        ticket_medio = df["Média Faturado"].mean()
 
         col1, col2, col3 = st.columns(3)
 
-        col1.metric("💰 Faturamento Total", f"R$ {faturamento_total:,.2f}".replace(",", ".").replace(".", ",", 1))
-        col2.metric("🧾 Total de Comandas", int(total_comandas))
-        col3.metric("🎯 Ticket Médio", f"R$ {ticket_medio:,.2f}".replace(",", ".").replace(".", ",", 1))
-
-        with st.expander("🔍 Visualizar Dados Carregados"):
-            st.dataframe(df)
+        col1.metric("💰 Faturamento Total", f"R$ {faturamento_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        col2.metric("📑 Total de Comandas", total_comandas)
+        col3.metric("📈 Ticket Médio", f"R$ {ticket_medio:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
     else:
-        st.error("❌ A planilha deve conter as colunas: Data, Faturado, Número de com., Média Faturado")
-else:
-    st.warning("📤 Faça o upload de um arquivo Excel para visualizar o dashboard.")
+        st.warning("⚠️ Nenhum dado encontrado no Google Sheets.")
+
+except Exception as e:
+    st.error(f"❌ Erro na leitura dos dados: {e}")
