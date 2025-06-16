@@ -3,7 +3,7 @@ import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 
-# ⚙️ Configuração da página
+# 🎨 Configurações da página
 st.set_page_config(page_title="Dashboard Sr. Saldanha", layout="wide")
 
 # 🔐 Autenticação com Google Sheets
@@ -24,12 +24,14 @@ sheet = spreadsheet.worksheet("Dados_Faturamento")
 # 🚀 Função para extrair dados dos arquivos Excel
 def extrair_dados_excel(uploaded_file):
     df = pd.read_excel(uploaded_file)
+    df.columns = df.columns.str.strip()  # remove espaços
     return df
 
-# 📤 Upload dos Excel
-st.sidebar.header("📑 Enviar arquivos de Faturamento")
+# 📤 Upload dos arquivos
+st.sidebar.header("📑 Enviar Arquivos de Faturamento")
 uploaded_files = st.sidebar.file_uploader(
-    "Escolha os arquivos Excel", type=["xlsx"], accept_multiple_files=True)
+    "Escolha os arquivos Excel", type=["xlsx"], accept_multiple_files=True
+)
 
 dfs = []
 
@@ -61,8 +63,9 @@ try:
     df["Ano"] = df["Ano"].astype(str)
     df["Mês"] = df["Mês"].astype(str)
 
-    # 🚥 Bloco Total 2025
-    st.subheader("📊 Total 2025")
+    # 🚥 KPIs principais
+    st.subheader("📈 Total 2025")
+
     df_2025 = df[df["Ano"] == "2025"]
 
     col1, col2, col3 = st.columns(3)
@@ -72,12 +75,12 @@ try:
 
     st.markdown("---")
 
-    # 📈 Gráfico de Faturamento
+    # 📈 Evolução de Faturamento
     st.subheader("🚀 Evolução de Faturamento por Mês")
     graf1 = df.groupby(["Ano", "Mês"])["Faturamento"].sum().reset_index()
     st.line_chart(graf1.pivot(index="Mês", columns="Ano", values="Faturamento"))
 
-    # 📊 Gráfico de Ticket Médio
+    # 📊 Ticket Médio por Mês
     st.subheader("📊 Ticket Médio por Mês")
     graf2 = df.groupby(["Ano", "Mês"])["Ticket Médio"].mean().reset_index()
     st.line_chart(graf2.pivot(index="Mês", columns="Ano", values="Ticket Médio"))
