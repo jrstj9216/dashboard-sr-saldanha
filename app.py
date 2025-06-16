@@ -63,8 +63,8 @@ try:
     df = pd.DataFrame(dados)
 
     # 🔧 Ajustes de tipos e dados
-    df["Ano"] = df["Ano"].astype(str)
-    df["Mês"] = df["Mês"].astype(str)
+    df["Ano"] = df["Data"].astype(str).str.split("/").str[1]
+    df["Mês"] = df["Data"].astype(str).str.split("/").str[0]
 
     # 🔢 KPIs principais
     st.subheader("📊 Indicadores")
