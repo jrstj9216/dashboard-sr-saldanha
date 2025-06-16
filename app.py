@@ -7,28 +7,32 @@ from google.oauth2.service_account import Credentials
 st.set_page_config(page_title="Sr. Saldanha | Dashboard", layout="wide")
 st.title("💈 Sr. Saldanha | Dashboard de Faturamento")
 
-# 🔑 Autenticação com Google Sheets
+# 🔐 Autenticação com Google Sheets
 scope = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
 ]
+
 credentials = Credentials.from_service_account_info(
     st.secrets["gcp_service_account"],
     scopes=scope
 )
+
 client = gspread.authorize(credentials)
 
-# 📊 Conectar na planilha
+# Conectando ao Google Sheets
 spreadsheet = client.open("Automacao_Barbearia")
 sheet = spreadsheet.worksheet("Dados_Faturamento")
+
 
 # 📥 Função para extrair dados do Excel
 def extrair_dados_excel(uploaded_file):
     df = pd.read_excel(uploaded_file, sheet_name="Sheet1")
-    df.columns = df.columns.str.strip()
+    df.columns = df.columns.str.strip()  # Remove espaços nas colunas
     return df
 
-# ⬆️ Upload dos arquivos
+
+# 📤 Upload dos arquivos
 st.sidebar.header("📄 Enviar Arquivos Excel de Faturamento")
 uploaded_files = st.sidebar.file_uploader(
     "Escolha os arquivos Excel",
@@ -37,51 +41,72 @@ uploaded_files = st.sidebar.file_uploader(
 )
 
 dfs = []
+
 if uploaded_files:
     for file in uploaded_files:
-        st.info(f"📑 Lendo arquivo: {file.name}")
+        st.info(f"Lendo arquivo: {file.name}")
         df = extrair_dados_excel(file)
+
+        # 🛑 Verificar se as colunas estão corretas
+        colunas_esperadas = ['Data Comanda', 'Comanda', 'Valor']
+        if not all(coluna in df.columns for coluna in colunas_esperadas):
+            st.error(f"⚠️ Colunas não conferem. Esperado: {colunas_esperadas}")
+            st.stop()
+
         dfs.append(df)
 
     if dfs:
         df_final = pd.concat(dfs, ignore_index=True)
 
-        # 🔄 Limpar planilha antes de enviar os dados
-        sheet.clear()
+        # Mostrar dados no app
+        st.subheader("📑 Dados extraídos dos arquivos Excel:")
+        st.dataframe(df_final)
 
-        # 🚀 Enviar para Google Sheets
-        sheet.update([df_final.columns.values.tolist()] + df_final.values.tolist())
+        # 🔄 Enviar dados para Google Sheets
+        if st.button("🚀 Enviar dados para Google Sheets"):
+            try:
+                # Limpa os dados atuais no Google Sheets
+                sheet.clear()
 
-        st.success("✅ Dados enviados para Google Sheets com sucesso!")
+                # Atualiza com os novos dados
+                sheet.update(
+                    [df_final.columns.values.tolist()] + df_final.values.tolist()
+                )
 
-# 🗂️ Carregar dados do Google Sheets
+                st.success("✅ Dados enviados para Google Sheets com sucesso!")
+
+            except Exception as e:
+                st.error(f"❌ Erro ao enviar dados para Google Sheets: {e}")
+
+# 🔍 Leitura dos dados do Google Sheets
 try:
     dados = sheet.get_all_records()
-    df = pd.DataFrame(dados)
+    df_google = pd.DataFrame(dados)
 
-    if not df.empty:
-        df["Data Comanda"] = pd.to_datetime(df["Data Comanda"], dayfirst=True, errors='coerce')
-        df["Comanda"] = pd.to_numeric(df["Comanda"], errors='coerce')
-        df["Valor"] = pd.to_numeric(df["Valor"], errors='coerce')
+    if not df_google.empty:
+        # Conversões necessárias
+        df_google['Valor'] = pd.to_numeric(df_google['Valor'], errors='coerce')
+        df_google['Comanda'] = pd.to_numeric(df_google['Comanda'], errors='coerce')
 
-        # 🔢 Bloco Faturamento do mês
+        # ✅ Bloco de indicadores
         st.subheader("📊 Faturado Este Mês")
-        total_faturamento = df["Valor"].sum()
-        total_comandas = df["Comanda"].sum()
-        ticket_medio = total_faturamento / total_comandas if total_comandas != 0 else 0
 
         col1, col2, col3 = st.columns(3)
-        col1.metric("💰 Faturamento Total", f"R$ {total_faturamento:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-        col2.metric("🧾 Total de Comandas", int(total_comandas))
-        col3.metric("🎟️ Ticket Médio", f"R$ {ticket_medio:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
-        # 📅 Mostrar tabela dos dados
-        st.subheader("📅 Dados de Faturamento")
-        st.dataframe(df)
+        faturamento_total = df_google['Valor'].sum()
+        total_comandas = df_google['Comanda'].sum()
+        ticket_medio = faturamento_total / total_comandas if total_comandas != 0 else 0
+
+        col1.metric("💰 Faturamento Total", f"R$ {faturamento_total:,.2f}")
+        col2.metric("🧾 Total de Comandas", int(total_comandas))
+        col3.metric("🎟️ Ticket Médio", f"R$ {ticket_medio:,.2f}")
+
+        # 📈 Exibir tabela
+        st.subheader("📄 Dados do Google Sheets:")
+        st.dataframe(df_google)
 
     else:
         st.warning("⚠️ Nenhum dado encontrado no Google Sheets.")
 
 except Exception as e:
-    st.warning("⚠️ Erro na conexão ou na leitura dos dados.")
-    st.error(e)
+    st.error(f"❌ Erro na conexão ou leitura dos dados: {e}")
