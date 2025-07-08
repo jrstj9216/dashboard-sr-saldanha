@@ -110,5 +110,5 @@ try:
 
 except Exception as e:
     st.error(f"❌ Erro na conexão ou leitura dos dados: {e}")
-    Commit changes
+
 
