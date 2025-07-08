@@ -21,7 +21,7 @@ credentials = Credentials.from_service_account_info(
 client = gspread.authorize(credentials)
 
 # Conectando ao Google Sheets
-spreadsheet = client.open("Automacao_Barbearia")
+spreadsheet = client.open("dados_avec")
 sheet = spreadsheet.worksheet("Dados_Faturamento")
 
 
@@ -110,3 +110,5 @@ try:
 
 except Exception as e:
     st.error(f"❌ Erro na conexão ou leitura dos dados: {e}")
+    Commit changes
+
