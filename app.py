@@ -22,7 +22,7 @@ client = gspread.authorize(credentials)
 
 # Conectando ao Google Sheets
 spreadsheet = client.open("dados_avec")
-sheet = spreadsheet.worksheet("Dados_Faturamento")
+sheet = spreadsheet.worksheet("Página1")
 
 
 # 📥 Função para extrair dados do Excel
